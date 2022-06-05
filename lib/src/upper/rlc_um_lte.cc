@@ -184,7 +184,20 @@ int rlc_um_lte::rlc_um_lte_tx::build_data_pdu(unique_byte_buffer_t pdu, uint8_t*
       header.N_li--;
       break;
     }
-    tx_sdu  = tx_sdu_queue.read();
+    //tx_sdu  = tx_sdu_queue.read();
+    auto result = dequeue_front();
+    bool is_drop = result.first;
+    tx_sdu = std::move(result.second);
+    while ( tx_sdu_queue.size() > 0 ) {
+      if (is_drop) {
+        result = dequeue_front();
+        is_drop = result.first;
+        tx_sdu = std::move(result.second);
+      }
+      else
+        break;
+    }
+
     to_move = (space >= tx_sdu->N_bytes) ? tx_sdu->N_bytes : space;
     logger.debug("%s adding new SDU segment - %d bytes of %d remaining", rb_name.c_str(), to_move, tx_sdu->N_bytes);
     memcpy(pdu_ptr, tx_sdu->msg, to_move);
@@ -221,7 +234,7 @@ int rlc_um_lte::rlc_um_lte_tx::build_data_pdu(unique_byte_buffer_t pdu, uint8_t*
   rlc_um_write_data_pdu_header(&header, pdu.get());
   memcpy(payload, pdu->msg, pdu->N_bytes);
 
-  logger.info(payload, pdu->N_bytes, "%s Tx PDU SN=%d (%d B)", rb_name.c_str(), header.sn, pdu->N_bytes);
+  logger.warning(payload, pdu->N_bytes, "%s Tx PDU SN=%d (%d B)", rb_name.c_str(), header.sn, pdu->N_bytes);
 
   debug_state();
 

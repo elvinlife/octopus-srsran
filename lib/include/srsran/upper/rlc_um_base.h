@@ -32,6 +32,8 @@
 #include <mutex>
 #include <pthread.h>
 #include <queue>
+#include <deque>
+#include <utility>
 
 namespace srsue {
 
@@ -77,6 +79,32 @@ public:
   void set_bsr_callback(bsr_callback_t callback) {}
 
 protected:
+  enum pkt_pos_t {FIRST, LAST, MID, SOLO};
+
+  class app_header_t {
+    static const int app_header_offset = 30; // 2(?) + 20(ip) + 8(udp)
+  private:
+    uint32_t ip_field_;
+    uint32_t udp_field_;
+    uint32_t seq_;
+    uint32_t msg_field_;
+    uint32_t wildcard_;
+
+  public:
+    app_header_t( unique_byte_buffer_t& tx_sdu );
+    uint32_t      seq() const;
+    int32_t       msg_no() const;
+    pkt_pos_t     pkt_pos() const;
+    uint32_t      priority() const;
+    uint32_t      priority_threshold() const;
+    bool          is_preempt() const;
+    uint32_t      slack_time() const;
+    uint32_t      bitrate() const;
+    bool          is_udp() const;
+    bool          is_octopus() const;
+    uint16_t      dst_port() const;
+  };
+
   // Transmitter sub-class base
   class rlc_um_base_tx
   {
@@ -121,6 +149,16 @@ protected:
     // helper functions
     virtual void debug_state() = 0;
     virtual void reset()       = 0;
+
+    // Octopus related functions and data structure
+    static const int max_prio = 4;
+    uint32_t dequeue_rate_;
+    uint32_t dequeue_bytes_ = 0;
+    std::deque<std::pair<uint64_t, uint32_t>> dequeue_trace_;
+    std::map<uint16_t, std::map< int32_t, int16_t >>  frame_counter_;
+    std::map<uint16_t, int32_t>                       msg_in_drop_;
+    std::map<uint16_t, int32_t [max_prio]>            prio_to_droppers_;
+    std::pair<bool, unique_byte_buffer_t> dequeue_front();
   };
 
   // Receiver sub-class base
