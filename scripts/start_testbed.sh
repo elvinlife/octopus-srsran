@@ -3,7 +3,7 @@
 sleep 10
 sudo ip netns delete ue1
 sudo ip netns add ue1
-#export SRSRAN_MACPDU_TRACE="$HOME/Research/Octopus-srsRAN/config/att-srsran-pdu.trace"
+#export SRSRAN_MACPDU_TRACE="$HOME/Research/srsRAN-Octopus/config/att-srsran-pdu.trace"
 #export SRSRAN_MACPDU_TRACE=$1
 sudo ../build/srsepc/src/srsepc --hss.db_file=../config/user_db.csv ../config/epc.conf &
 sleep 1

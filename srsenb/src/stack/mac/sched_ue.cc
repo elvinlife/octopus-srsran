@@ -920,7 +920,7 @@ srsran::interval<uint32_t> sched_ue::get_requested_dl_bytes_synthetic(uint32_t e
       max_data = mac_pdu > min_data ? mac_pdu : min_data;
     }
 
-    logger.info("requested_dl_bytes_synthetic: min_data: %u max_data: %u upperbound: %u tti: %u cumu_tti: %u",
+    logger.debug("requested_dl_bytes_synthetic: min_data: %u max_data: %u upperbound: %u tti: %u cumu_tti: %u",
        min_data, max_data, mac_pdu, tti_tx_dl.to_uint(), cumulative_tti);
   }
 
