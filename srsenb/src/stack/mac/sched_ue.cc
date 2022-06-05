@@ -59,6 +59,7 @@ sched_ue::sched_ue(uint16_t rnti_, const std::vector<sched_cell_params_t>& cell_
   std::ifstream ifs(pdu_trace_fname, std::ifstream::in);
   if (ifs.is_open()) {
     ifs >> num_ttis;
+    cycle_id = 0;
     int num_traces, pdus_size;
     ifs >> num_traces;
     for (int i = 0; i < num_traces; ++i) {
@@ -68,6 +69,7 @@ sched_ue::sched_ue(uint16_t rnti_, const std::vector<sched_cell_params_t>& cell_
   }
   else {
     num_ttis = -1;
+    cycle_id = -1;
     logger.warning("srsran macpdu trace file unavailable");
   }
 }
@@ -129,6 +131,10 @@ void sched_ue::new_subframe(tti_point tti_rx, uint32_t enb_cc_idx)
 
   if (cells[enb_cc_idx].configured()) {
     cells[enb_cc_idx].tpc_fsm.new_tti();
+  }
+
+  if (tti_rx.to_uint() == 10239) {
+    cycle_id += 1;
   }
 }
 
@@ -893,14 +899,15 @@ srsran::interval<uint32_t> sched_ue::get_requested_dl_bytes_synthetic(uint32_t e
   max_data = srb0_data + sum_ce_data + rb_data;
 
   if (mac_pdu_trace.size() > 0) {
-    int pdus_id = (tti_tx_dl.to_uint() / num_ttis) % mac_pdu_trace.size();
+    uint32_t cumulative_tti = 10240 * cycle_id + tti_tx_dl.to_uint();
+    int pdus_id = (cumulative_tti / num_ttis) % mac_pdu_trace.size();
     uint32_t mac_pdu = mac_pdu_trace[pdus_id] / num_ttis;
     if (max_data > mac_pdu) {
       max_data = mac_pdu > min_data ? mac_pdu : min_data;
     }
 
-    logger.info("requested_dl_bytes_synthetic: min_data: %u max_data: %u upperbound: %u tti: %u",
-       min_data, max_data, mac_pdu, tti_tx_dl.to_uint());
+    logger.info("requested_dl_bytes_synthetic: min_data: %u max_data: %u upperbound: %u tti: %u cumu_tti: %u",
+       min_data, max_data, mac_pdu, tti_tx_dl.to_uint(), cumulative_tti);
   }
 
   /* Set Minimum boundary */

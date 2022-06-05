@@ -221,9 +221,11 @@ private:
   std::vector<sched_ue_cell> cells; ///< List of eNB cells that may be configured/activated/deactivated for the UE
 
   /* MAC-PDU trace related */
+  /* mac_pdu_trace stores the sum bytes srsenb should serve every num_ttis.
+  e.g. mac_pdu_trace[i] records sum of mac-pdus between i*sum_ttis and (i+1)*sum_ttis */
   int                   num_ttis;
   std::vector<uint32_t> mac_pdu_trace;
-  int                   period_id;
+  int                   cycle_id;
 };
 
 using sched_ue_list = std::map<uint16_t, std::unique_ptr<sched_ue> >;
