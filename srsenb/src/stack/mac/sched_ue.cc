@@ -898,6 +898,20 @@ srsran::interval<uint32_t> sched_ue::get_requested_dl_bytes_synthetic(uint32_t e
   }
   max_data = srb0_data + sum_ce_data + rb_data;
 
+  /* Set Minimum boundary */
+  min_data = srb0_data;
+  if (not lch_handler.pending_ces.empty() and lch_handler.pending_ces.front() == lch_ue_manager::ce_cmd::CON_RES_ID) {
+    min_data += srsran::ce_total_size(lch_handler.pending_ces.front());
+  }
+  if (min_data == 0) {
+    if (sum_ce_data > 0) {
+      min_data = srsran::ce_total_size(lch_handler.pending_ces.front());
+    } else if (rb_data > 0) {
+      //min_data = MAC_MIN_ALLOC_SIZE;
+      min_data = 0;
+    }
+  }
+
   if (mac_pdu_trace.size() > 0) {
     uint32_t cumulative_tti = 10240 * cycle_id + tti_tx_dl.to_uint();
     int pdus_id = (cumulative_tti / num_ttis) % mac_pdu_trace.size();
@@ -908,19 +922,6 @@ srsran::interval<uint32_t> sched_ue::get_requested_dl_bytes_synthetic(uint32_t e
 
     logger.info("requested_dl_bytes_synthetic: min_data: %u max_data: %u upperbound: %u tti: %u cumu_tti: %u",
        min_data, max_data, mac_pdu, tti_tx_dl.to_uint(), cumulative_tti);
-  }
-
-  /* Set Minimum boundary */
-  min_data = srb0_data;
-  if (not lch_handler.pending_ces.empty() and lch_handler.pending_ces.front() == lch_ue_manager::ce_cmd::CON_RES_ID) {
-    min_data += srsran::ce_total_size(lch_handler.pending_ces.front());
-  }
-  if (min_data == 0) {
-    if (sum_ce_data > 0) {
-      min_data = srsran::ce_total_size(lch_handler.pending_ces.front());
-    } else if (rb_data > 0) {
-      min_data = MAC_MIN_ALLOC_SIZE;
-    }
   }
 
   return {min_data, max_data};
