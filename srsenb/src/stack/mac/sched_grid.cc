@@ -508,7 +508,7 @@ alloc_result sf_sched::alloc_dl_user(sched_ue* user, const rbgmask_t& user_mask,
   const dl_harq_proc& h = user->get_dl_harq(pid, cc_cfg->enb_cc_idx);
   if (h.is_empty()) {
     // It is newTx
-    rbg_interval r = user->get_required_dl_rbgs(cc_cfg->enb_cc_idx);
+    rbg_interval r = user->get_required_dl_rbgs(cc_cfg->enb_cc_idx, get_tti_tx_dl());
     if (r.start() > user_mask.count()) {
       logger.debug("SCHED: The number of RBGs allocated to rnti=0x%x will force segmentation", user->get_rnti());
       return alloc_result::invalid_grant_params;

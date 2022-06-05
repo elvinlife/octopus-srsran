@@ -26,6 +26,7 @@
 #include "srsenb/hdr/stack/mac/sched_ue.h"
 #include "srsran/common/string_helpers.h"
 #include "srsran/srslog/bundled/fmt/ranges.h"
+#include <fstream>
 
 using srsran::tti_interval;
 
@@ -54,6 +55,21 @@ sched_ue::sched_ue(uint16_t rnti_, const std::vector<sched_cell_params_t>& cell_
   logger.info("SCHED: Added user rnti=0x%x", rnti);
 
   set_cfg(cfg_);
+  const char* pdu_trace_fname = std::getenv("SRSRAN_MACPDU_TRACE");
+  std::ifstream ifs(pdu_trace_fname, std::ifstream::in);
+  if (ifs.is_open()) {
+    ifs >> num_ttis;
+    int num_traces, pdus_size;
+    ifs >> num_traces;
+    for (int i = 0; i < num_traces; ++i) {
+      ifs >> pdus_size;
+      mac_pdu_trace.push_back(pdus_size);
+    }
+  }
+  else {
+    num_ttis = -1;
+    logger.warning("srsran macpdu trace file unavailable");
+  }
 }
 
 void sched_ue::set_cfg(const ue_cfg_t& cfg_)
@@ -499,7 +515,8 @@ tbs_info sched_ue::compute_mcs_and_tbs(uint32_t               enb_cc_idx,
                                        const srsran_dci_dl_t& dci)
 {
   assert(cells[enb_cc_idx].configured());
-  srsran::interval<uint32_t> req_bytes = get_requested_dl_bytes(enb_cc_idx);
+  //srsran::interval<uint32_t> req_bytes = get_requested_dl_bytes(enb_cc_idx);
+  srsran::interval<uint32_t> req_bytes = get_requested_dl_bytes_synthetic(enb_cc_idx, tti_tx_dl);
 
   // Calculate exact number of RE for this PRB allocation
   uint32_t nof_re = cells[enb_cc_idx].cell_cfg->get_dl_nof_res(tti_tx_dl, dci, cfi);
@@ -754,11 +771,12 @@ bool sched_ue::needs_cqi(uint32_t tti, uint32_t enb_cc_idx, bool will_send)
  * @param enb_cc_idx carrier of the UE
  * @return range of number of RBGs that a UE can allocate in a given subframe
  */
-rbg_interval sched_ue::get_required_dl_rbgs(uint32_t enb_cc_idx)
+rbg_interval sched_ue::get_required_dl_rbgs(uint32_t enb_cc_idx, tti_point tti_tx_dl)
 {
   assert(cells[enb_cc_idx].configured());
   const auto*                cellparams = cells[enb_cc_idx].cell_cfg;
-  srsran::interval<uint32_t> req_bytes  = get_requested_dl_bytes(enb_cc_idx);
+  //srsran::interval<uint32_t> req_bytes  = get_requested_dl_bytes(enb_cc_idx);
+  srsran::interval<uint32_t> req_bytes = get_requested_dl_bytes_synthetic(enb_cc_idx, tti_tx_dl);
   if (req_bytes == srsran::interval<uint32_t>{0, 0}) {
     return {0, 0};
   }
@@ -827,6 +845,63 @@ srsran::interval<uint32_t> sched_ue::get_requested_dl_bytes(uint32_t enb_cc_idx)
     rb_data += lch_handler.get_dl_tx_total_with_overhead(i);
   }
   max_data = srb0_data + sum_ce_data + rb_data;
+
+  /* Set Minimum boundary */
+  min_data = srb0_data;
+  if (not lch_handler.pending_ces.empty() and lch_handler.pending_ces.front() == lch_ue_manager::ce_cmd::CON_RES_ID) {
+    min_data += srsran::ce_total_size(lch_handler.pending_ces.front());
+  }
+  if (min_data == 0) {
+    if (sum_ce_data > 0) {
+      min_data = srsran::ce_total_size(lch_handler.pending_ces.front());
+    } else if (rb_data > 0) {
+      min_data = MAC_MIN_ALLOC_SIZE;
+    }
+  }
+
+  return {min_data, max_data};
+}
+
+srsran::interval<uint32_t> sched_ue::get_requested_dl_bytes_synthetic(uint32_t enb_cc_idx, tti_point tti_tx_dl)
+{
+  assert(cells.at(enb_cc_idx).configured());
+
+  /* Set Maximum boundary */
+  if (cells[enb_cc_idx].cc_state() != cc_st::active) {
+    return {};
+  }
+
+  uint32_t max_data = 0, min_data = 0;
+  uint32_t srb0_data = 0, rb_data = 0, sum_ce_data = 0;
+
+  srb0_data = lch_handler.get_dl_tx_total_with_overhead(0);
+  // Add pending CEs
+  if (cells[enb_cc_idx].is_pcell()) {
+    if (srb0_data == 0 and not lch_handler.pending_ces.empty() and
+        lch_handler.pending_ces.front() == srsran::dl_sch_lcid::CON_RES_ID) {
+      // Wait for SRB0 data to be available for Msg4 before scheduling the ConRes CE
+      return {};
+    }
+    for (const lch_ue_manager::ce_cmd& ce : lch_handler.pending_ces) {
+      sum_ce_data += srsran::ce_total_size(ce);
+    }
+  }
+  // Add pending data in remaining RLC buffers
+  for (int i = 1; i < sched_interface::MAX_LC; i++) {
+    rb_data += lch_handler.get_dl_tx_total_with_overhead(i);
+  }
+  max_data = srb0_data + sum_ce_data + rb_data;
+
+  if (mac_pdu_trace.size() > 0) {
+    int pdus_id = (tti_tx_dl.to_uint() / num_ttis) % mac_pdu_trace.size();
+    uint32_t mac_pdu = mac_pdu_trace[pdus_id] / num_ttis;
+    if (max_data > mac_pdu) {
+      max_data = mac_pdu > min_data ? mac_pdu : min_data;
+    }
+
+    logger.info("requested_dl_bytes_synthetic: min_data: %u max_data: %u upperbound: %u tti: %u",
+       min_data, max_data, mac_pdu, tti_tx_dl.to_uint());
+  }
 
   /* Set Minimum boundary */
   min_data = srb0_data;

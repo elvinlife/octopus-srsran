@@ -93,7 +93,7 @@ public:
   /// Get total pending bytes to be transmitted in DL.
   /// The amount of CEs to transmit depends on whether enb_cc_idx is UE's PCell
   uint32_t     get_pending_dl_bytes(uint32_t enb_cc_idx);
-  rbg_interval get_required_dl_rbgs(uint32_t enb_cc_idx);
+  rbg_interval get_required_dl_rbgs(uint32_t enb_cc_idx, tti_point tti_tx_dl);
   uint32_t     get_pending_dl_rlc_data() const;
   uint32_t     get_expected_dl_bitrate(uint32_t enb_cc_idx, int nof_rbgs = -1) const;
 
@@ -150,6 +150,7 @@ public:
 
 private:
   srsran::interval<uint32_t> get_requested_dl_bytes(uint32_t enb_cc_idx);
+  srsran::interval<uint32_t> get_requested_dl_bytes_synthetic(uint32_t enb_cc_idx, tti_point tti_tx_dl);
 
   bool is_sr_triggered();
 
@@ -218,6 +219,11 @@ private:
 
   tti_point                  current_tti;
   std::vector<sched_ue_cell> cells; ///< List of eNB cells that may be configured/activated/deactivated for the UE
+
+  /* MAC-PDU trace related */
+  int                   num_ttis;
+  std::vector<uint32_t> mac_pdu_trace;
+  int                   period_id;
 };
 
 using sched_ue_list = std::map<uint16_t, std::unique_ptr<sched_ue> >;

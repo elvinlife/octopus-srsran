@@ -157,7 +157,7 @@ alloc_result try_dl_newtx_alloc_greedy(sf_sched& tti_sched, sched_ue& ue, const 
   }
 
   // If there is no data to transmit, no need to allocate
-  rbg_interval req_rbgs = ue.get_required_dl_rbgs(tti_sched.get_enb_cc_idx());
+  rbg_interval req_rbgs = ue.get_required_dl_rbgs(tti_sched.get_enb_cc_idx(), tti_sched.get_tti_tx_dl());
   if (req_rbgs.stop() == 0) {
     return alloc_result::no_rnti_opportunity;
   }
