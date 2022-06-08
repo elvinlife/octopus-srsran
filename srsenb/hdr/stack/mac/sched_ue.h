@@ -93,7 +93,7 @@ public:
   /// Get total pending bytes to be transmitted in DL.
   /// The amount of CEs to transmit depends on whether enb_cc_idx is UE's PCell
   uint32_t     get_pending_dl_bytes(uint32_t enb_cc_idx);
-  rbg_interval get_required_dl_rbgs(uint32_t enb_cc_idx, tti_point tti_tx_dl);
+  rbg_interval get_required_dl_rbgs(uint32_t enb_cc_idx, tti_point tti_tx_dl, bool min_rbgs_only);
   uint32_t     get_pending_dl_rlc_data() const;
   uint32_t     get_expected_dl_bitrate(uint32_t enb_cc_idx, int nof_rbgs = -1) const;
 
@@ -226,6 +226,9 @@ private:
   int                   num_ttis;
   std::vector<uint32_t> mac_pdu_trace;
   int                   cycle_id;
+  int64_t               init_ts;
+  int64_t               physical_tti_current;
+  uint32_t              pdu_bucket_current;
 };
 
 using sched_ue_list = std::map<uint16_t, std::unique_ptr<sched_ue> >;

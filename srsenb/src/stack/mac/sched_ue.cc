@@ -27,6 +27,10 @@
 #include "srsran/common/string_helpers.h"
 #include "srsran/srslog/bundled/fmt/ranges.h"
 #include <fstream>
+#include <chrono>
+using std::chrono::milliseconds;
+using std::chrono::system_clock;
+using std::chrono::duration_cast;
 
 using srsran::tti_interval;
 
@@ -58,14 +62,15 @@ sched_ue::sched_ue(uint16_t rnti_, const std::vector<sched_cell_params_t>& cell_
   const char* pdu_trace_fname = std::getenv("SRSRAN_MACPDU_TRACE");
   std::ifstream ifs(pdu_trace_fname, std::ifstream::in);
   if (ifs.is_open()) {
-    ifs >> num_ttis;
-    cycle_id = 0;
     int num_traces, pdus_size;
+    ifs >> num_ttis;
     ifs >> num_traces;
     for (int i = 0; i < num_traces; ++i) {
       ifs >> pdus_size;
       mac_pdu_trace.push_back(pdus_size);
     }
+    cycle_id = 0;
+    init_ts = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
   }
   else {
     num_ttis = -1;
@@ -777,12 +782,18 @@ bool sched_ue::needs_cqi(uint32_t tti, uint32_t enb_cc_idx, bool will_send)
  * @param enb_cc_idx carrier of the UE
  * @return range of number of RBGs that a UE can allocate in a given subframe
  */
-rbg_interval sched_ue::get_required_dl_rbgs(uint32_t enb_cc_idx, tti_point tti_tx_dl)
+rbg_interval sched_ue::get_required_dl_rbgs(uint32_t enb_cc_idx, tti_point tti_tx_dl, bool min_rbgs_only)
 {
   assert(cells[enb_cc_idx].configured());
   const auto*                cellparams = cells[enb_cc_idx].cell_cfg;
   //srsran::interval<uint32_t> req_bytes  = get_requested_dl_bytes(enb_cc_idx);
-  srsran::interval<uint32_t> req_bytes = get_requested_dl_bytes_synthetic(enb_cc_idx, tti_tx_dl);
+  srsran::interval<uint32_t> req_bytes;
+  if (min_rbgs_only) {
+    req_bytes = get_requested_dl_bytes(enb_cc_idx);
+  }
+  else {
+    req_bytes = get_requested_dl_bytes_synthetic(enb_cc_idx, tti_tx_dl);
+  }
   if (req_bytes == srsran::interval<uint32_t>{0, 0}) {
     return {0, 0};
   }
@@ -913,6 +924,7 @@ srsran::interval<uint32_t> sched_ue::get_requested_dl_bytes_synthetic(uint32_t e
   }
 
   if (mac_pdu_trace.size() > 0) {
+    /*
     uint32_t cumulative_tti = 10240 * cycle_id + tti_tx_dl.to_uint();
     int pdus_id = (cumulative_tti / num_ttis) % mac_pdu_trace.size();
     uint32_t mac_pdu = mac_pdu_trace[pdus_id] / num_ttis;
@@ -922,6 +934,24 @@ srsran::interval<uint32_t> sched_ue::get_requested_dl_bytes_synthetic(uint32_t e
 
     logger.debug("requested_dl_bytes_synthetic: min_data: %u max_data: %u upperbound: %u tti: %u cumu_tti: %u",
        min_data, max_data, mac_pdu, tti_tx_dl.to_uint(), cumulative_tti);
+    */
+    int64_t now_tti = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count() - init_ts;
+    if (now_tti > physical_tti_current) {
+      for (int64_t i = physical_tti_current + 1; i <= now_tti; ++i) {
+        int pdus_id = (i / num_ttis) % mac_pdu_trace.size();
+        pdu_bucket_current += mac_pdu_trace[pdus_id] / num_ttis;
+        physical_tti_current = now_tti;
+      }
+    }
+    if (max_data > pdu_bucket_current) {
+      max_data = pdu_bucket_current > min_data ? pdu_bucket_current : min_data;
+    }
+    logger.info("requested_dl_bytes_synthetic: min_data: %u max_data: %u upperbound: %u tti: %u physical_tti: %u",
+        min_data, max_data, pdu_bucket_current, tti_tx_dl.to_uint(), physical_tti_current);
+    pdu_bucket_current -= max_data;
+    if (max_data == 0) {
+      pdu_bucket_current = 0;
+    }
   }
 
   return {min_data, max_data};
