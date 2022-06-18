@@ -190,6 +190,7 @@ int rlc_um_lte::rlc_um_lte_tx::build_data_pdu(unique_byte_buffer_t pdu, uint8_t*
     tx_sdu = std::move(result.second);
     while ( tx_sdu_queue.size() > 0 ) {
       if (is_drop) {
+        tx_sdu.reset();
         result = dequeue_front();
         is_drop = result.first;
         tx_sdu = std::move(result.second);

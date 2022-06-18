@@ -467,9 +467,11 @@ rlc_um_base::rlc_um_base_tx::dequeue_front()
       sojourn_time >= app_header.slack_time() ) {
         pkt_is_drop = true;
         msg_in_drop_[dstport] = app_header.msg_no();
-        logger.warning("drop-prim-2, ts: %lu seq: %u msg_no: %d bitrate: %u slack_time: %u\n",
+        logger.warning("drop-prim-2, ts: %lu seq: %u msg_no: %d"
+        " bitrate: %u dequeue_rate: %u slack_time: %u frame_counter: %u\n",
           ts_microsecond, app_header.seq(), app_header.msg_no(), 
-          app_header.bitrate(), app_header.slack_time()
+          app_header.bitrate(), dequeue_rate_, app_header.slack_time(),
+          frame_counter_[dstport].size()
           );
       }
       else if (app_header.msg_no() < latest_dropper &&
@@ -477,9 +479,10 @@ rlc_um_base::rlc_um_base_tx::dequeue_front()
         pkt_is_drop = true;
         msg_in_drop_[dstport] = app_header.msg_no();
         logger.warning("drop-prim-1, ts: %lu seq: %u msg_no: %d"
-          " priority: %u dropper: %d slack_time: %u\n",
+          " priority: %u dropper: %d slack_time: %u frame_counter: %u\n",
           ts_microsecond, app_header.seq(), app_header.msg_no(),
-          app_header.priority(), latest_dropper, app_header.slack_time()
+          app_header.priority(), latest_dropper, app_header.slack_time(),
+          frame_counter_[dstport].size()
           );
       }
   }

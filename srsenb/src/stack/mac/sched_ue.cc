@@ -71,6 +71,8 @@ sched_ue::sched_ue(uint16_t rnti_, const std::vector<sched_cell_params_t>& cell_
     }
     cycle_id = 0;
     init_ts = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+    logger.info("srsran macpdu trace: %s num_ttis: %d num_traces: %d",
+        pdu_trace_fname, num_ttis, num_traces);
   }
   else {
     num_ttis = -1;
@@ -940,8 +942,8 @@ srsran::interval<uint32_t> sched_ue::get_requested_dl_bytes_synthetic(uint32_t e
       for (int64_t i = physical_tti_current + 1; i <= now_tti; ++i) {
         int pdus_id = (i / num_ttis) % mac_pdu_trace.size();
         pdu_bucket_current += mac_pdu_trace[pdus_id] / num_ttis;
-        physical_tti_current = now_tti;
       }
+      physical_tti_current = now_tti;
     }
     if (max_data > pdu_bucket_current) {
       max_data = pdu_bucket_current > min_data ? pdu_bucket_current : min_data;
