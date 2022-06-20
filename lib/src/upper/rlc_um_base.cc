@@ -324,9 +324,9 @@ bool rlc_um_base::rlc_um_base_tx::has_data()
 void rlc_um_base::rlc_um_base_tx::write_sdu(unique_byte_buffer_t sdu)
 {
   if (sdu) {
-    logger.info(sdu->msg,
+    logger.warning(sdu->msg,
                 sdu->N_bytes,
-                "%s Tx SDU (%d B, tx_sdu_queue_len=%d)",
+                "%s Tx(write_sdu) SDU (%d B, tx_sdu_queue_len=%d)",
                 rb_name.c_str(),
                 sdu->N_bytes,
                 tx_sdu_queue.size());
@@ -373,8 +373,19 @@ int rlc_um_base::rlc_um_base_tx::try_write_sdu(unique_byte_buffer_t sdu)
 
     srsran::error_type<unique_byte_buffer_t> ret       = tx_sdu_queue.try_write(std::move(sdu));
     if (ret) {
-      logger.warning(
-          msg_ptr, nof_bytes, "%s Tx SDU (%d B, tx_sdu_queue_len=%d)", rb_name.c_str(), nof_bytes, tx_sdu_queue.size());
+      if (app_header.is_octopus()) {
+        logger.warning(
+            msg_ptr, nof_bytes, "%s Tx(try_write_sdu) SDU (size: %dB seq: %d msg_no: %d pkt_pos: %d queue_len: %d)",
+            rb_name.c_str(), nof_bytes,
+            app_header.seq(), app_header.msg_no(),
+            app_header.pkt_pos(), tx_sdu_queue.size());
+      }
+      else {
+        logger.warning(
+            msg_ptr, nof_bytes, "%s Tx SDU (size: %dB seq: 0 msg_no: 0 tx_sdu_queue_len: %d)",
+            rb_name.c_str(), nof_bytes,
+            tx_sdu_queue.size());
+      }
       return SRSRAN_SUCCESS;
     } else {
       logger.warning(ret.error()->msg,
@@ -446,6 +457,10 @@ rlc_um_base::rlc_um_base_tx::dequeue_front()
 {
   unique_byte_buffer_t pkt_sdu = tx_sdu_queue.read();
   app_header_t app_header(pkt_sdu);
+  logger.info("dequeue_front size: %u seq: %u msg_no: %d pkt_pos: %d queue_len: %u",
+      pkt_sdu->N_bytes, app_header.seq(), 
+      app_header.msg_no(), app_header.pkt_pos(),
+      tx_sdu_queue.size());
   if (!app_header.is_octopus()) {
     return std::pair<bool, unique_byte_buffer_t>(false, std::move(pkt_sdu));
   }
@@ -465,7 +480,7 @@ rlc_um_base::rlc_um_base_tx::dequeue_front()
       }
       if (app_header.bitrate() > dequeue_rate_ && 
       sojourn_time >= app_header.slack_time() ) {
-        pkt_is_drop = true;
+        //pkt_is_drop = true;
         msg_in_drop_[dstport] = app_header.msg_no();
         logger.warning("drop-prim-2, ts: %lu seq: %u msg_no: %d"
         " bitrate: %u dequeue_rate: %u slack_time: %u frame_counter: %u\n",
@@ -476,7 +491,7 @@ rlc_um_base::rlc_um_base_tx::dequeue_front()
       }
       else if (app_header.msg_no() < latest_dropper &&
       sojourn_time >= app_header.slack_time()) {
-        pkt_is_drop = true;
+        //pkt_is_drop = true;
         msg_in_drop_[dstport] = app_header.msg_no();
         logger.warning("drop-prim-1, ts: %lu seq: %u msg_no: %d"
           " priority: %u dropper: %d slack_time: %u frame_counter: %u\n",
@@ -486,13 +501,22 @@ rlc_um_base::rlc_um_base_tx::dequeue_front()
           );
       }
   }
-  else if (app_header.msg_no() == msg_in_drop_[dstport]) {
+  if (app_header.msg_no() == msg_in_drop_[dstport]) {
+    logger.warning("drop-pkt, ts: %lu seq: %u msg_no: %d",
+        ts_microsecond, app_header.seq(), app_header.msg_no());
     pkt_is_drop = true;
   }
 
   // delete the msg from record
   if (app_header.pkt_pos() == FIRST || app_header.pkt_pos() == LAST) {
-    frame_counter_[dstport].at( app_header.msg_no() ) -= 1;
+    if (frame_counter_[dstport].find(app_header.msg_no()) == frame_counter_[dstport].end()) {
+      logger.error("Dequeue a non-existing packet seq: %u msg_no: %d",
+        app_header.seq(), app_header.msg_no());
+      frame_counter_[dstport][app_header.msg_no()] = 0;
+    }
+    else {
+      frame_counter_[dstport].at( app_header.msg_no() ) -= 1;
+    }
     if (frame_counter_[dstport][app_header.msg_no()] == 0) {
       frame_counter_[dstport].erase( app_header.msg_no() );
     }

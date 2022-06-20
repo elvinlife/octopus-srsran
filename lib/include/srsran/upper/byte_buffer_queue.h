@@ -42,7 +42,7 @@ namespace srsran {
 class byte_buffer_queue
 {
 public:
-  byte_buffer_queue(int capacity = 128) :
+  byte_buffer_queue(int capacity = 250) :
     queue(capacity, push_callback(unread_bytes, n_sdus), pop_callback(unread_bytes, n_sdus))
   {}
 

@@ -235,7 +235,7 @@ int rlc_um_lte::rlc_um_lte_tx::build_data_pdu(unique_byte_buffer_t pdu, uint8_t*
   rlc_um_write_data_pdu_header(&header, pdu.get());
   memcpy(payload, pdu->msg, pdu->N_bytes);
 
-  logger.warning(payload, pdu->N_bytes, "%s Tx PDU SN=%d (%d B)", rb_name.c_str(), header.sn, pdu->N_bytes);
+  logger.info(payload, pdu->N_bytes, "%s Tx PDU SN=%d (%d B)", rb_name.c_str(), header.sn, pdu->N_bytes);
 
   debug_state();
 
